@@ -1,0 +1,84 @@
+name: HROne API - Test and Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "sample_data/**"
+      - "sample_seed.py"
+      - ".github/workflows/azure-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test API before deployment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Check Python compilation
+        run: python -m compileall -q app tests
+
+      - name: Upload application artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hrone-api
+          path: |
+            app/
+            requirements.txt
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Azure App Service
+    runs-on: ubuntu-latest
+    needs: test
+    environment:
+      name: production
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download tested application
+        uses: actions/download-artifact@v4
+        with:
+          name: hrone-api
+          path: deploy-package
+
+      - name: Log in to Azure using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: hroneanalytics
+          package: deploy-package
