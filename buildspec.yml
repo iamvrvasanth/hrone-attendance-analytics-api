@@ -1,0 +1,27 @@
+
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - python --version
+      - pip install --upgrade pip
+      - pip install -r requirements.txt
+
+  pre_build:
+    commands:
+      - python -m compileall -q app
+      - pytest -q
+
+artifacts:
+  files:
+    - '**/*'
+  discard-paths: no
+  exclude-paths:
+    - '.git/**/*'
+    - '.venv/**/*'
+    - '.env'
+    - '**/__pycache__/**/*'
+    - '**/.pytest_cache/**/*'
