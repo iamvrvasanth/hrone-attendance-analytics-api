@@ -9,11 +9,12 @@ phases:
       - python --version
       - pip install --upgrade pip
       - pip install -r requirements.txt
+      - pip install pytest
 
   build:
     commands:
       - python -m compileall -q app
-      - pytest -q
+      - python -m pytest -q
 
 artifacts:
   files:
