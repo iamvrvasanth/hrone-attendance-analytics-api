@@ -81,4 +81,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: hroneanalytics
-          package: deploy-package
+          package: deploy-package/
