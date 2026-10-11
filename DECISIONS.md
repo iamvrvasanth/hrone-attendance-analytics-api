@@ -1,34 +1,44 @@
 # DECISIONS.md
 
-1. **Indexes.** Which indexes did you create, and which query or guarantee does each one serve? Which one did you consider and reject?
+## 1. Indexes
 
-1. **Indexes.** Employees use unique `emp_code` for identity and a
-`(department, emp_code)` index for sorted department listing. Attendance uses
-unique `(emp_code, date)` to prevent duplicate daily records, `(date DESC,
-emp_code)` for listing, and `(status, date DESC)` for status/date filters and
-analytics. I considered a standalone `joined_on` index, but did not add it:
-the current eligibility predicate matches nearly all employees and would add
-write/storage cost without measurable benefit.
+**Question:** Which indexes did you create, and which query or guarantee does each one serve? Which one did you consider and reject?
 
-2. **Punch-in race.** Two identical punch-in requests arrive at the same instant. Walk through exactly what happens in your code.
+**Answer:**
+- **Employees:** A unique `emp_code` index ensures employee identity, while `(department, emp_code)` supports sorted department listings.
+- **Attendance:** A unique `(emp_code, date)` index prevents duplicate daily records. `(date DESC, emp_code)` supports attendance listing, and `(status, date DESC)` supports status/date filters and analytics.
+- **Rejected index:** I considered a standalone `joined_on` index but rejected it because the current eligibility predicate matches nearly all employees. It would add storage and write costs without a measurable benefit.
 
-2. **Punch-in race.** Both requests may pass the preliminary `find_one`.
-MongoDB's unique attendance index allows only one insert. The losing
-`DuplicateKeyError` is converted to HTTP 409, so exactly one record remains.
+## 2. Punch-in Race Condition
 
-3. **Ties.** Two employees are tied on late minutes at the cutoff of `limit`. What does your leaderboard return, and why?
+**Question:** Two identical punch-in requests arrive at the same instant. Walk through exactly what happens in your code.
 
-3. **Ties.** The leaderboard uses MongoDB `$rank`, not a row limit before
-ranking. Every employee tied at the cutoff rank is returned, even if that
-means more than `limit` rows.
+**Answer:**
+- Both requests may pass the preliminary `find_one` check.
+- MongoDB's unique attendance index permits only one insert for the same employee and date.
+- The losing request raises `DuplicateKeyError`, which is converted to HTTP `409 Conflict`.
+- Exactly one attendance record remains.
 
-4. **Headcount.** How does your department summary make sure employees with zero attendance logs are counted?
+## 3. Leaderboard Ties
 
-4. **Headcount.** Department summary starts from eligible employee documents
-and looks up attendance logs. Employees with no matching logs therefore remain
-in the pipeline and contribute to headcount.
+**Question:** Two employees are tied on late minutes at the cutoff of `limit`. What does your leaderboard return, and why?
 
-5. **One thing you would change** if this had to serve 100x the data.
+**Answer:**
+- The leaderboard uses MongoDB's `$rank` rather than limiting rows before ranking.
+- Every employee tied at the cutoff rank is returned, even if the result contains more rows than the requested `limit`.
 
-5. **100x scale.** I would first measure query plans and latency, then
-partition or archive attendance data by date and review aggregation indexes.
+## 4. Department Headcount
+
+**Question:** How does your department summary make sure employees with zero attendance logs are counted?
+
+**Answer:**
+- The department summary starts with eligible employee documents and looks up their attendance logs.
+- Employees without matching logs remain in the aggregation pipeline and still contribute to the department headcount.
+
+## 5. Scaling to 100x Data
+
+**Question:** What is one thing you would change if this had to serve 100 times the current data volume?
+
+**Answer:**
+- I would first measure query plans and latency.
+- Based on the results, I would consider partitioning or archiving attendance data by date and reviewing aggregation indexes.
